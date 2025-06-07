@@ -28,7 +28,6 @@ struct AddJobView: View {
                             .font(.title2)
                             .foregroundColor(.white)
                     }
-                    
                     Spacer()
                     
                     Text("Add Job")
@@ -192,11 +191,15 @@ struct AddJobView: View {
             workingDays: 22,
             customHourlyRate: useCustomRate ? Double(customHourlyRate) : nil
         )
-        
         appState.addJob(job)
         appState.currentView = .accounts
     }
+    
+ 
+    
 }
+
+
 
 // MARK: - Time Input Field Component
 struct TimeInputField: View {
@@ -236,34 +239,43 @@ struct TimeInputField: View {
     }
 }
 
-// MARK: - Time Picker View
 struct TimePickerView: View {
     @Binding var selectedTime: Date
     @Binding var time: String
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
-        NavigationView {
-            VStack {
-                DatePicker("Select Time", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                    .datePickerStyle(WheelDatePickerStyle())
-                    .labelsHidden()
+        VStack(spacing: 20) {
+            Text("Select Time")
+                .font(.headline)
+                .padding(.top)
+            
+            DatePicker("Select Time", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                .datePickerStyle(WheelDatePickerStyle())
+                .labelsHidden()
+            
+            HStack {
+                Button("Cancel") {
+                    presentationMode.wrappedValue.dismiss()
+                }
+                .foregroundColor(.red)
                 
                 Spacer()
-            }
-            .navigationTitle("Select Time")
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    presentationMode.wrappedValue.dismiss()
-                },
-                trailing: Button("Done") {
+                
+                Button("Done") {
                     let formatter = DateFormatter()
                     formatter.dateFormat = "HH:mm"
                     time = formatter.string(from: selectedTime)
                     presentationMode.wrappedValue.dismiss()
                 }
-            )
+                .foregroundColor(.blue)
+            }
+            .padding(.horizontal)
+            .padding(.bottom)
         }
+        .frame(height: 300) // Fixed height
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
     }
 }
 
@@ -323,7 +335,7 @@ struct JobEditView: View {
                                 EditNumberField(
                                     title: "Monthly Salary",
                                     value: $tempJob.monthlySalary,
-                                    formatter: NumberFormatter.currency
+                                    formatter: NumberFormatter.salary
                                 )
                             }
                         }
@@ -396,7 +408,7 @@ struct JobEditView: View {
                                             get: { tempJob.customHourlyRate ?? 0.0 },
                                             set: { tempJob.customHourlyRate = $0 }
                                         ),
-                                        formatter: NumberFormatter.currency
+                                        formatter: NumberFormatter.salary
                                     )
                                 } else {
                                     VStack(alignment: .leading, spacing: 8) {
@@ -572,10 +584,13 @@ struct StatisticRow: View {
 
 // MARK: - Number Formatter Extensions
 extension NumberFormatter {
-    static let currency: NumberFormatter = {
+    static let salary: NumberFormatter = {
         let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 2
+        formatter.minimumFractionDigits = 0
+        formatter.groupingSeparator = ","
+        formatter.usesGroupingSeparator = true
         return formatter
     }()
     

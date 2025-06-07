@@ -10,15 +10,31 @@ import Foundation
 // MARK: - App State
 class AppState: ObservableObject {
     @Published var currentView: AppView = .loading
-    @Published var userName: String = "John Doe"
+    @Published var userName: String = "John Doe" {
+        didSet {
+            saveUserData()
+        }
+    }
     @Published var currentEarnings: Double = 0.0
-    @Published var lifetimeEarnings: Double = 5847.23
+    @Published var lifetimeEarnings: Double = 5847.23 {
+        didSet {
+            saveUserData()
+        }
+    }
     @Published var todaysEarnings: Double = 0.0
     @Published var hoursWorked: Double = 0.0
     @Published var showAllPastEarnings: Bool = false
-    @Published var jobs: [Job] = []
+    @Published var jobs: [Job] = [] {
+        didSet {
+            saveJobs()
+        }
+    }
     @Published var selectedJob: Job?
-    @Published var activeJob: Job?
+    @Published var activeJob: Job? {
+        didSet {
+            saveActiveJobID()
+        }
+    }
     @Published var pastEarnings: [DailyEarning] = [
         DailyEarning(date: "Yesterday", amount: 118.75),
         DailyEarning(date: "12 May", amount: 135.25),
@@ -30,14 +46,38 @@ class AppState: ObservableObject {
         DailyEarning(date: "6 May", amount: 132.85),
         DailyEarning(date: "5 May", amount: 149.30),
         DailyEarning(date: "4 May", amount: 127.65)
-    ]
+    ] {
+        didSet {
+            savePastEarnings()
+        }
+    }
     
     enum AppView {
         case loading, dashboard, accounts, jobEdit, addJob
     }
     
     init() {
-        // Load sample jobs
+        loadUserData()
+        loadJobs()
+        loadPastEarnings()
+        loadActiveJob()
+        
+        // If no saved jobs, create sample jobs
+        if jobs.isEmpty {
+            createSampleJobs()
+        }
+        
+        // Set active job if none is set
+        if activeJob == nil && !jobs.isEmpty {
+            activeJob = jobs.first
+        }
+        
+        // Calculate today's earnings
+        calculateTodaysEarnings()
+    }
+    
+    // MARK: - Sample Data Creation
+    private func createSampleJobs() {
         jobs = [
             Job(title: "Software Developer",
                 monthlySalary: 5000.0,
@@ -58,14 +98,77 @@ class AppState: ObservableObject {
                 lifetimeHours: 892.0,
               )
         ]
-        
-        // Set first job as active by default
-        activeJob = jobs.first
-        
-        // Calculate today's earnings using lazy load
-        calculateTodaysEarnings()
     }
     
+    // MARK: - Persistence Methods
+    private func saveJobs() {
+        do {
+            let encoded = try JSONEncoder().encode(jobs)
+            UserDefaults.standard.set(encoded, forKey: "SavedJobs")
+            print("✅ Jobs saved successfully")
+        } catch {
+            print("❌ Failed to save jobs: \(error)")
+        }
+    }
+    
+    private func loadJobs() {
+        guard let data = UserDefaults.standard.data(forKey: "SavedJobs"),
+              let decoded = try? JSONDecoder().decode([Job].self, from: data) else {
+            print("📝 No saved jobs found")
+            return
+        }
+        jobs = decoded
+        print("✅ Loaded \(jobs.count) jobs")
+    }
+    
+    private func saveUserData() {
+        UserDefaults.standard.set(userName, forKey: "UserName")
+        UserDefaults.standard.set(lifetimeEarnings, forKey: "LifetimeEarnings")
+    }
+    
+    private func loadUserData() {
+        userName = UserDefaults.standard.string(forKey: "UserName") ?? "John Doe"
+        lifetimeEarnings = UserDefaults.standard.double(forKey: "LifetimeEarnings")
+        if lifetimeEarnings == 0 {
+            lifetimeEarnings = 5847.23 // Default value
+        }
+    }
+    
+    private func saveActiveJobID() {
+        if let activeJob = activeJob {
+            UserDefaults.standard.set(activeJob.id.uuidString, forKey: "ActiveJobID")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "ActiveJobID")
+        }
+    }
+    
+    private func loadActiveJob() {
+        guard let activeJobIDString = UserDefaults.standard.string(forKey: "ActiveJobID"),
+              let activeJobID = UUID(uuidString: activeJobIDString) else {
+            return
+        }
+        
+        activeJob = jobs.first { $0.id == activeJobID }
+    }
+    
+    private func savePastEarnings() {
+        do {
+            let encoded = try JSONEncoder().encode(pastEarnings)
+            UserDefaults.standard.set(encoded, forKey: "PastEarnings")
+        } catch {
+            print("❌ Failed to save past earnings: \(error)")
+        }
+    }
+    
+    private func loadPastEarnings() {
+        guard let data = UserDefaults.standard.data(forKey: "PastEarnings"),
+              let decoded = try? JSONDecoder().decode([DailyEarning].self, from: data) else {
+            return // Keep default values
+        }
+        pastEarnings = decoded
+    }
+    
+    // MARK: - Existing Methods (unchanged)
     func calculateTodaysEarnings() {
         guard let job = activeJob else {
             todaysEarnings = 0.0
@@ -177,14 +280,12 @@ class AppState: ObservableObject {
     
     func setActiveJob(_ job: Job) {
         activeJob = job
-        calculateTodaysEarnings() // Recalculate when active job changes
     }
     
     func addJob(_ job: Job) {
         jobs.append(job)
         if activeJob == nil {
             activeJob = job
-            calculateTodaysEarnings()
         }
     }
     
@@ -196,5 +297,15 @@ class AppState: ObservableObject {
                 calculateTodaysEarnings()
             }
         }
+    }
+    
+    // MARK: - Clear Data (for testing)
+    func clearAllData() {
+        UserDefaults.standard.removeObject(forKey: "SavedJobs")
+        UserDefaults.standard.removeObject(forKey: "UserName")
+        UserDefaults.standard.removeObject(forKey: "LifetimeEarnings")
+        UserDefaults.standard.removeObject(forKey: "ActiveJobID")
+        UserDefaults.standard.removeObject(forKey: "PastEarnings")
+        print("🗑️ All data cleared")
     }
 }

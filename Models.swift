@@ -8,8 +8,8 @@
 import Foundation
 
 // MARK: - Job Model
-struct Job: Identifiable {
-    let id = UUID()
+struct Job: Identifiable,Codable {
+    var id = UUID()
     var title: String
     var monthlySalary: Double
     var workStartTime: String // Format: "HH:mm"
@@ -83,8 +83,8 @@ struct Job: Identifiable {
 }
 
 // MARK: - Daily Earning Model
-struct DailyEarning: Identifiable {
-    let id = UUID()
+struct DailyEarning: Identifiable, Codable {
+    var id: UUID = UUID()
     let date: String
     let amount: Double
 }
