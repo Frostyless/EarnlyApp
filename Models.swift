@@ -18,7 +18,7 @@ struct Job: Identifiable {
     var lunchEndTime: String   // Format: "HH:mm"
     var hoursWorkedToday: Double
     var lifetimeHours: Double
-    var workingDays: Int // Working days per month
+    var workingDays = 22 // Working days per month
     var customHourlyRate: Double? // Optional custom rate
     
     var hourlyRate: Double {

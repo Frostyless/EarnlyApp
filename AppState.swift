@@ -47,7 +47,7 @@ class AppState: ObservableObject {
                 lunchEndTime: "13:00",
                 hoursWorkedToday: 0.0,
                 lifetimeHours: 1847.5,
-                workingDays: 22),
+                ),
             Job(title: "Freelance Designer",
                 monthlySalary: 3200.0,
                 workStartTime: "09:00",
@@ -56,7 +56,7 @@ class AppState: ObservableObject {
                 lunchEndTime: "13:30",
                 hoursWorkedToday: 0.0,
                 lifetimeHours: 892.0,
-                workingDays: 20)
+              )
         ]
         
         // Set first job as active by default

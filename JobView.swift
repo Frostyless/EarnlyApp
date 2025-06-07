@@ -64,29 +64,6 @@ struct AddJobView: View {
                                     keyboardType: .decimalPad
                                 )
                                 
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Working Days per Month")
-                                        .font(.body)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(.white)
-                                    
-                                    Picker("Working Days", selection: $workingDays) {
-                                        ForEach(15...30, id: \.self) { day in
-                                            Text("\(day) days").tag(day)
-                                        }
-                                    }
-                                    .pickerStyle(MenuPickerStyle())
-                                    .padding(12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(Color.white.opacity(0.1))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                            )
-                                    )
-                                    .foregroundColor(.white)
-                                }
                             }
                         }
                         
@@ -212,7 +189,7 @@ struct AddJobView: View {
             lunchEndTime: lunchEndTime,
             hoursWorkedToday: 0.0,
             lifetimeHours: 0.0,
-            workingDays: workingDays,
+            workingDays: 22,
             customHourlyRate: useCustomRate ? Double(customHourlyRate) : nil
         )
         
@@ -348,30 +325,6 @@ struct JobEditView: View {
                                     value: $tempJob.monthlySalary,
                                     formatter: NumberFormatter.currency
                                 )
-                                
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Working Days per Month")
-                                        .font(.body)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(.white)
-                                    
-                                    Picker("Working Days", selection: $tempJob.workingDays) {
-                                        ForEach(15...30, id: \.self) { day in
-                                            Text("\(day) days").tag(day)
-                                        }
-                                    }
-                                    .pickerStyle(MenuPickerStyle())
-                                    .padding(12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(Color.white.opacity(0.1))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                            )
-                                    )
-                                    .foregroundColor(.white)
-                                }
                             }
                         }
                         
