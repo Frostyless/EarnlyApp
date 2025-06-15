@@ -283,6 +283,8 @@ struct TimePickerView: View {
 struct JobEditView: View {
     @EnvironmentObject var appState: AppState
     @State private var tempJob: Job
+    @State private var showDeleteAlert = false
+    @State private var jobToDelete: Job?
     
     init() {
         _tempJob = State(initialValue: Job(title: "", monthlySalary: 0, workStartTime: "08:00", workEndTime: "18:00", lunchStartTime: "12:00", lunchEndTime: "13:00", hoursWorkedToday: 0, lifetimeHours: 0, workingDays: 22, customHourlyRate: nil))
@@ -311,6 +313,16 @@ struct JobEditView: View {
                         .foregroundColor(.white)
                     
                     Spacer()
+                    
+                    // Add delete button here
+                    Button(action: {
+                        jobToDelete = tempJob
+                        showDeleteAlert = true
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.title2)
+                            .foregroundColor(.red)
+                    }
                     
                     Button("Save") {
                         appState.updateJob(tempJob)
@@ -463,6 +475,18 @@ struct JobEditView: View {
             if let selectedJob = appState.selectedJob {
                 tempJob = selectedJob
             }
+        }
+        // Add the alert here, after the existing modifiers
+        .alert("Delete Job", isPresented: $showDeleteAlert) {
+            Button("Delete", role: .destructive) {
+                if let job = jobToDelete {
+                    appState.deleteJob(job)
+                    appState.currentView = .accounts
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to delete '\(jobToDelete?.title ?? "")'?")
         }
     }
 }
