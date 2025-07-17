@@ -14,6 +14,43 @@ struct WorkSession: Codable {
     }
 }
 
+
+// MARK: - Add to your AppState class
+extension AppState {
+    
+    // MARK: - Refresh Function
+    @MainActor
+    func refreshData() async {
+        print("🔄 Starting data refresh...")
+        
+        // Show loading state briefly for user feedback
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                continuation.resume()
+            }
+        }
+        
+        // Recalculate missed work sessions
+        calculateMissedWorkSessions()
+        
+        // Recalculate today's earnings
+        calculateTodaysEarnings()
+        
+        // Force update of computed properties
+        objectWillChange.send()
+        
+        print("✅ Data refresh completed")
+        print("💎 Updated lifetime earnings: $\(String(format: "%.2f", lifetimeEarnings))")
+    }
+    
+    // MARK: - Manual Refresh (for debugging)
+    func manualRefresh() {
+        print("🔄 Manual refresh triggered")
+        calculateMissedWorkSessions()
+        calculateTodaysEarnings()
+        objectWillChange.send()
+    }
+}
 // MARK: - App State
 class AppState: ObservableObject {
     @Published var currentView: AppView = .loading
@@ -27,13 +64,21 @@ class AppState: ObservableObject {
     @Published var workSessionEarnings: Double = 0.0 {
         didSet {
             saveUserData()
+            print("💰 Work session earnings updated: $\(workSessionEarnings)")
+            print("💎 New lifetime earnings: $\(lifetimeEarnings)")
         }
     }
-    @Published var todaysEarnings: Double = 0.0
+    @Published var todaysEarnings: Double = 0.0 {
+        didSet {
+            print("📅 Today's earnings updated: $\(todaysEarnings)")
+            print("💎 Current lifetime earnings: $\(lifetimeEarnings)")
+        }
+    }
     
     // COMPUTED: Lifetime earnings = past work + today's work
     var lifetimeEarnings: Double {
-        return workSessionEarnings + todaysEarnings
+        let total = workSessionEarnings + todaysEarnings
+        return total
     }
     
     @Published var hoursWorked: Double = 0.0
@@ -73,6 +118,7 @@ class AppState: ObservableObject {
     }
     
     init() {
+        // Load data first
         loadUserData()
         loadJobs()
         loadPastEarnings()
@@ -80,36 +126,57 @@ class AppState: ObservableObject {
         loadWorkSessions()
         loadLastWorkSessionDate()
         
+        print("🚀 Initial data loaded:")
+        print("💰 Loaded work session earnings: $\(workSessionEarnings)")
+        print("📊 Loaded \(workSessions.count) work sessions")
         
         // Set active job if none is set
         if activeJob == nil && !jobs.isEmpty {
-               activeJob = jobs.first
-           }
+            activeJob = jobs.first
+        }
         
         // Calculate missed work sessions since last app open
         calculateMissedWorkSessions()
         
-        // Calculate today's earnings
+        // Calculate today's earnings AFTER missed work sessions
         calculateTodaysEarnings()
+        
+        printAppStateDebugInfo()
     }
     
-    // MARK: - Work Session Calculation
+    // MARK: - Work Session Calculation (FIXED)
     private func calculateMissedWorkSessions() {
-        guard let activeJob = activeJob else { return }
+        guard let activeJob = activeJob else {
+            print("⚠️ No active job found, skipping missed work session calculation")
+            return
+        }
         
         let today = Calendar.current.startOfDay(for: Date())
-        let lastSessionDate = lastWorkSessionDate ?? today
         
-        // Don't process if we already processed today or if last session was today
+        // FIXED: Handle first launch case
+        let lastSessionDate: Date
+        if let savedLastSessionDate = lastWorkSessionDate {
+            lastSessionDate = savedLastSessionDate
+            print("📅 Using saved last session date: \(savedLastSessionDate)")
+        } else {
+            // First launch - calculate from a reasonable start date
+            lastSessionDate = Calendar.current.date(byAdding: .day, value: -7, to: today) ?? today
+            print("📅 First launch detected. Starting calculation from: \(lastSessionDate)")
+        }
+        
+        // Don't process if we already processed today
         if Calendar.current.isDate(lastSessionDate, inSameDayAs: today) {
+            print("📅 Already processed today, skipping")
             return
         }
         
         print("📅 Calculating missed work sessions from \(lastSessionDate) to \(today)")
+        print("💰 Current work session earnings before calculation: $\(workSessionEarnings)")
         
         var currentDate = Calendar.current.date(byAdding: .day, value: 1, to: lastSessionDate) ?? today
         var totalMissedEarnings: Double = 0.0
         var newPastEarnings: [DailyEarning] = []
+        var addedSessionsCount = 0
         
         while currentDate < today {
             if isWorkday(currentDate) {
@@ -125,13 +192,14 @@ class AppState: ObservableObject {
                 
                 workSessions.append(workSession)
                 totalMissedEarnings += dailyEarnings
+                addedSessionsCount += 1
                 
                 // Add to past earnings for UI display
                 let dateString = formatDateForPastEarnings(currentDate)
                 let dailyEarning = DailyEarning(date: dateString, amount: dailyEarnings)
                 newPastEarnings.append(dailyEarning)
                 
-                print("💰 Added work session for \(currentDate): $\(dailyEarnings)")
+                print("💰 Added work session for \(formatDateForPastEarnings(currentDate)): $\(String(format: "%.2f", dailyEarnings))")
             }
             
             currentDate = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) ?? today
@@ -152,30 +220,75 @@ class AppState: ObservableObject {
             print("📊 Added \(newPastEarnings.count) entries to past earnings")
         }
         
-        // Update work session earnings (this excludes today)
-        workSessionEarnings += totalMissedEarnings
+        // CRITICAL FIX: Update work session earnings EXPLICITLY
+        if totalMissedEarnings > 0 {
+            let previousWorkSessionEarnings = workSessionEarnings
+            workSessionEarnings += totalMissedEarnings
+            
+            print("✅ MISSED WORK SESSIONS SUMMARY:")
+            print("   📊 Sessions added: \(addedSessionsCount)")
+            print("   💰 Previous work session earnings: $\(String(format: "%.2f", previousWorkSessionEarnings))")
+            print("   💰 Total missed earnings: $\(String(format: "%.2f", totalMissedEarnings))")
+            print("   💰 New work session earnings: $\(String(format: "%.2f", workSessionEarnings))")
+            print("   💎 New lifetime earnings: $\(String(format: "%.2f", lifetimeEarnings))")
+        } else {
+            print("📅 No missed work sessions to add")
+        }
         
         // Update last work session date to yesterday
         lastWorkSessionDate = Calendar.current.date(byAdding: .day, value: -1, to: today)
-        
-        if totalMissedEarnings > 0 {
-            print("✅ Added $\(totalMissedEarnings) in missed work sessions")
-        }
     }
     
-    // MARK: - Date Formatting Helpers
+    // MARK: - Date Formatting Helpers (FIXED)
     private func formatDateForPastEarnings(_ date: Date) -> String {
+        // NEVER store "Yesterday" - always store the actual date
+        // The UI will determine if it should display "Yesterday" dynamically
+        
+        let calendar = Calendar.current
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        
+        // Check if it's the current year
+        let currentYear = calendar.component(.year, from: now)
+        let dateYear = calendar.component(.year, from: date)
+        
+        if dateYear == currentYear {
+            // Same year - just show day and month
+            formatter.dateFormat = "d MMM"
+        } else {
+            // Different year - include the year
+            formatter.dateFormat = "d MMM yyyy"
+        }
+        
+        let formattedDate = formatter.string(from: date)
+        print("📅 Formatted date \(date) as '\(formattedDate)'")
+        return formattedDate
+    }
+
+    // MARK: - Dynamic Display Formatting (NEW)
+    // Use this function when DISPLAYING past earnings in the UI
+    func formatDateForDisplay(_ dateString: String) -> String {
         let calendar = Calendar.current
         let now = Date()
         
-        if calendar.isDate(date, inSameDayAs: calendar.date(byAdding: .day, value: -1, to: now) ?? now) {
+        // Parse the stored date string back to a Date
+        let storedDate = parseDateFromPastEarnings(dateString)
+        
+        // Check if it's actually yesterday relative to NOW
+        if calendar.isDate(storedDate, inSameDayAs: calendar.date(byAdding: .day, value: -1, to: now) ?? now) {
             return "Yesterday"
         }
         
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        return formatter.string(from: date)
+        // Check if it's today
+        if calendar.isDate(storedDate, inSameDayAs: now) {
+            return "Today"
+        }
+        
+        // Otherwise return the original stored date string
+        return dateString
     }
+
     
     private func parseDateFromPastEarnings(_ dateString: String) -> Date {
         if dateString == "Yesterday" {
@@ -245,6 +358,7 @@ class AppState: ObservableObject {
         lastWorkSessionDate = today
         
         print("🎯 Work day ended. Added $\(workSession.earnings) to lifetime earnings")
+        print("💎 New lifetime earnings: $\(lifetimeEarnings)")
     }
     
     // MARK: - Persistence Methods
@@ -264,7 +378,20 @@ class AppState: ObservableObject {
             return
         }
         workSessions = decoded
+        
+        // Recalculate work session earnings from loaded sessions to ensure consistency
+        let calculatedEarnings = workSessions.reduce(0) { total, session in
+            total + session.earnings
+        }
         print("✅ Loaded \(workSessions.count) work sessions")
+        print("💰 Calculated earnings from sessions: $\(String(format: "%.2f", calculatedEarnings))")
+        print("💰 Stored work session earnings: $\(String(format: "%.2f", workSessionEarnings))")
+        
+        // Optional: Sync if there's a discrepancy
+        if abs(calculatedEarnings - workSessionEarnings) > 0.01 {
+            print("⚠️ Earnings mismatch detected. Syncing to calculated value.")
+            workSessionEarnings = calculatedEarnings
+        }
     }
     
     private func saveLastWorkSessionDate() {
@@ -287,8 +414,8 @@ class AppState: ObservableObject {
     private func loadUserData() {
         userName = UserDefaults.standard.string(forKey: "UserName") ?? "John Doe"
         workSessionEarnings = UserDefaults.standard.double(forKey: "WorkSessionEarnings")
+        print("📂 Loaded user data - Work session earnings: $\(workSessionEarnings)")
     }
-  
     
     // MARK: - Existing Methods (unchanged)
     func calculateTodaysEarnings() {
@@ -347,6 +474,8 @@ class AppState: ObservableObject {
         if let index = jobs.firstIndex(where: { $0.id == job.id }) {
             jobs[index].hoursWorkedToday = hoursWorked
         }
+        
+        print("📊 Today's earnings calculated: $\(String(format: "%.2f", todaysEarnings)) (Hours: \(String(format: "%.2f", hoursWorked)))")
     }
     
     func getTodaysWorkProgress() -> Double {
@@ -412,6 +541,12 @@ class AppState: ObservableObject {
             activeJob = job
             calculateTodaysEarnings()
         }
+        // If this is the first job, set lastWorkSessionDate to today
+            if lastWorkSessionDate == nil {
+                lastWorkSessionDate = Calendar.current.startOfDay(for: Date())
+                print("📅 First job created. Set lastWorkSessionDate to today: \(lastWorkSessionDate!)")
+            }
+
     }
     
     // MARK: - Delete Job Function
@@ -438,23 +573,17 @@ class AppState: ObservableObject {
         // Recalculate work session earnings after removing sessions
         recalculateWorkSessionEarnings()
         
-        // Remove related past earnings (optional - depends on your UI needs)
-        // You might want to keep past earnings for historical purposes
-        // pastEarnings = pastEarnings.filter { /* your logic here */ }
-        
         print("🗑️ Deleted job: \(jobToDelete.title)")
         print("📊 Removed \(removedSessions) work sessions")
-        
-        // Persistence is handled automatically by the didSet observers
-        // on jobs, workSessions, and workSessionEarnings properties
     }
-
+    
     // MARK: - Helper function to recalculate work session earnings
     private func recalculateWorkSessionEarnings() {
+        let previousEarnings = workSessionEarnings
         workSessionEarnings = workSessions.reduce(0) { total, session in
             total + session.earnings
         }
-        print("💰 Recalculated work session earnings: $\(workSessionEarnings)")
+        print("💰 Recalculated work session earnings: $\(workSessionEarnings) (was $\(previousEarnings))")
     }
     
     func updateJob(_ updatedJob: Job) {
@@ -533,5 +662,20 @@ class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "LastWorkSessionDate")
         print("🗑️ All data cleared")
     }
+    
+    private func printAppStateDebugInfo() {
+        print("🔍 === AppState Debug Info ===")
+        print("👤 User Name: \(userName)")
+        print("💰 Work Session Earnings: $\(String(format: "%.2f", workSessionEarnings))")
+        print("📅 Today's Earnings: $\(String(format: "%.2f", todaysEarnings))")
+        print("💎 Lifetime Earnings: $\(String(format: "%.2f", lifetimeEarnings))")
+        print("⏰ Hours Worked Today: \(String(format: "%.2f", hoursWorked))")
+        print("🏢 Total Jobs: \(jobs.count)")
+        print("🎯 Active Job: \(activeJob?.title ?? "None")")
+        print("📊 Work Sessions: \(workSessions.count)")
+        print("📈 Past Earnings: \(pastEarnings.count) entries")
+        print("📅 Last Work Session Date: \(lastWorkSessionDate?.description ?? "None")")
+        print("👁️ Show All Past Earnings: \(showAllPastEarnings)")
+        print("🔍 === End Debug Info ===\n")
+    }
 }
-

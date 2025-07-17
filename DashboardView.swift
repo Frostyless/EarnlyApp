@@ -12,7 +12,9 @@ struct DashboardView: View {
     @EnvironmentObject var appState: AppState
     @State private var animateElements = false
     @State private var currentTime = Date()
-    
+    @State private var isRefreshing = false
+
+
     var body: some View {
         ZStack {
             AppBackground()
@@ -54,6 +56,14 @@ struct DashboardView: View {
                 
                 ScrollView {
                     VStack(spacing: 24) {
+                        if isRefreshing {
+                                    HStack {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                            .tint(Color(red: 0.4, green: 0.8, blue: 0.6))
+                                    }
+                                    .padding(.bottom, 8)
+                                }
                         // Active Job Status
                         if let activeJob = appState.activeJob {
                             ActiveJobCard(job: activeJob)
@@ -103,6 +113,11 @@ struct DashboardView: View {
                         Spacer(minLength: 100)
                     }
                     .padding(.top, 20)
+                }
+                .refreshable {
+                    isRefreshing = true
+                    await appState.refreshData()
+                    isRefreshing = false
                 }
             }
         }
@@ -294,7 +309,7 @@ struct PastEarningsSection: View {
             VStack(spacing: 12) {
                 ForEach(displayedEarnings) { earning in
                     HStack {
-                        Text(earning.date)
+                        Text(appState.formatDateForDisplay(earning.date))
                             .font(.body)
                             .foregroundColor(.white)
                         

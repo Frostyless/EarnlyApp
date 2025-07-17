@@ -6,11 +6,11 @@
 //
 
 import SwiftUI
-
 // MARK: - Accounts View
 struct AccountsView: View {
     @EnvironmentObject var appState: AppState
-    @State private var slideInOffset: CGFloat = -UIScreen.main.bounds.width
+    @State private var isVisible = false
+    @State private var contentOpacity = 0.0
     
     var body: some View {
         ZStack {
@@ -20,7 +20,7 @@ struct AccountsView: View {
                 // Header
                 HStack {
                     Button(action: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        withAnimation(.easeInOut(duration: 0.4)) {
                             appState.currentView = .dashboard
                         }
                     }) {
@@ -59,6 +59,8 @@ struct AccountsView: View {
                                         .foregroundColor(.white)
                                         .fontWeight(.bold)
                                 )
+                                .scaleEffect(isVisible ? 1.0 : 0.8)
+                                .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0), value: isVisible)
                             
                             Text(appState.userName)
                                 .font(.title2)
@@ -78,21 +80,30 @@ struct AccountsView: View {
                                 Spacer()
                                 
                                 Button(action: {
-                                    appState.currentView = .addJob
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                        appState.currentView = .addJob
+                                    }
                                 }) {
                                     Image(systemName: "plus")
                                         .font(.title3)
                                         .foregroundColor(Color(red: 0.4, green: 0.8, blue: 0.6))
+                                        .scaleEffect(isVisible ? 1.0 : 0.5)
+                                        .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.2), value: isVisible)
                                 }
                             }
                             .padding(.horizontal, 20)
                             
                             VStack(spacing: 12) {
-                                ForEach(appState.jobs) { job in
+                                ForEach(Array(appState.jobs.enumerated()), id: \.element.id) { index, job in
                                     JobCard(job: job, isActive: appState.activeJob?.id == job.id)
+                                        .offset(x: isVisible ? 0 : 50)
+                                        .opacity(isVisible ? 1.0 : 0)
+                                        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(Double(index) * 0.1), value: isVisible)
                                         .onTapGesture {
-                                            appState.selectedJob = job
-                                            appState.currentView = .jobEdit
+                                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                                appState.selectedJob = job
+                                                appState.currentView = .jobEdit
+                                            }
                                         }
                                 }
                             }
@@ -102,18 +113,25 @@ struct AccountsView: View {
                         Spacer(minLength: 100)
                     }
                 }
+                .opacity(contentOpacity)
             }
         }
-        .navigationBarHidden(true)
-        .offset(x: slideInOffset)
-        .onAppear {
-            withAnimation(.easeOut(duration: 0.3)) {
-                slideInOffset = 0
+        .offset(x: isVisible ? 0 : -UIScreen.main.bounds.width)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        isVisible = true
+                    }
+                    
+                    withAnimation(.easeOut(duration: 0.4).delay(0.2)) {
+                        contentOpacity = 1.0
+                    }
+                }
+                .onDisappear {
+                    isVisible = false
+                    contentOpacity = 0.0
+                }
             }
         }
-    }
-}
-
 
 // MARK: - Job Card Component
 struct JobCard: View {
